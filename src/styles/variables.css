@@ -1,0 +1,31 @@
+:root {
+  --color-primary: #3b7eff;
+  --color-primary-hover: #5590ff;
+  --color-primary-active: #2e6ce0;
+  --color-primary-light: #ecf3ff;
+  --color-danger: #f53f3f;
+  --color-danger-hover: #f76560;
+  --color-text: #1f2329;
+  --color-text-secondary: #86909c;
+  --color-text-tertiary: #c9cdd4;
+  --color-bg: #f5f7fa;
+  --color-card: #ffffff;
+  --color-border: #e5e6eb;
+  --color-step-active-bg: #3b7eff;
+  --color-step-active-text: #ffffff;
+  --color-step-bg: #f7f8fa;
+
+  --radius-card: 12px;
+  --radius-button: 8px;
+  --radius-step: 8px;
+  --radius-checkbox: 4px;
+
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.04);
+  --shadow-button: 0 2px 4px rgba(59, 126, 255, 0.2);
+
+  --font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC',
+    'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+}
