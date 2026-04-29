@@ -6,11 +6,12 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
+    "typecheck": "vue-tsc --noEmit",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint . --ext .ts,.vue --max-warnings 0",
-    "format": "prettier --write \"src/**/*.{ts,vue,css}\""
+    "format": "prettier --write \"**/*.{ts,vue,css}\" --ignore-path .gitignore"
   },
   "dependencies": {
     "vue": "^3.4.21"

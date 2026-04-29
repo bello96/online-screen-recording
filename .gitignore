@@ -6,4 +6,5 @@ dist
 *.log
 coverage
 .eslintcache
+*.tsbuildinfo
 .git/COMMIT_MSG
