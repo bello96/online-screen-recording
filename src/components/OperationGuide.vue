@@ -33,8 +33,21 @@
         <div class="op-tip op-tip--top">点击开始录制视频</div>
         <button class="op-mock-button" type="button" disabled>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-            <rect x="2" y="6" width="14" height="12" rx="2" stroke="currentColor" stroke-width="2" />
-            <path d="M16 10L22 7V17L16 14V10Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
+            <rect
+              x="2"
+              y="6"
+              width="14"
+              height="12"
+              rx="2"
+              stroke="currentColor"
+              stroke-width="2"
+            />
+            <path
+              d="M16 10L22 7V17L16 14V10Z"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linejoin="round"
+            />
           </svg>
           开始录制
         </button>
@@ -47,12 +60,7 @@
         <div class="op-tip op-tip--bottom">点击勾选可进行声音设置</div>
       </div>
       <ol class="operation-guide__steps">
-        <li
-          v-for="step in steps"
-          :key="step.index"
-          class="op-step"
-          :class="{ 'op-step--active': step.index === 1 }"
-        >
+        <li v-for="step in steps" :key="step.index" class="op-step">
           <div class="op-step__title">{{ step.title }}</div>
           <div class="op-step__desc">{{ step.description }}</div>
         </li>
