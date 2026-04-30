@@ -1,7 +1,13 @@
 <script setup lang="ts">
   import { computed } from 'vue'
 
-  const props = defineProps<{ seconds: number }>()
+  const props = withDefaults(
+    defineProps<{
+      seconds: number
+      compact?: boolean
+    }>(),
+    { compact: false },
+  )
 
   const WARNING_THRESHOLD = 30 * 60
 
@@ -14,12 +20,12 @@
     return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`
   })
 
-  const warning = computed(() => props.seconds >= WARNING_THRESHOLD)
+  const warning = computed(() => !props.compact && props.seconds >= WARNING_THRESHOLD)
 </script>
 
 <template>
-  <div class="recording-timer">
-    <span class="recording-timer__dot" />
+  <div class="recording-timer" :class="{ 'is-compact': compact }">
+    <span v-if="!compact" class="recording-timer__dot" />
     <span class="recording-timer__time">{{ display }}</span>
     <span v-if="warning" class="recording-timer__warning">建议尽快结束录制以避免内存占用过高</span>
   </div>
@@ -32,6 +38,10 @@
     gap: 8px;
     font-size: 14px;
     color: var(--color-text);
+  }
+  .recording-timer.is-compact {
+    color: inherit;
+    font-size: inherit;
   }
   .recording-timer__dot {
     width: 8px;

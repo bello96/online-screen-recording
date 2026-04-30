@@ -9,13 +9,13 @@
 
 - 屏幕/窗口/标签页录制
 - 可选录入系统声音、麦克风（可同时）
-- 录制中支持暂停 / 继续 / 结束
-- 录制完成后预览、下载视频文件
+- 录制中实时预览画面 + 暂停 / 继续 / 结束
+- 录制完成后预览、双格式下载（webm 直下；mp4 通过 ffmpeg.wasm 浏览器内转码）
+- 文件名约定：`在线录制-YYYYMMDD.{webm|mp4}`
 - 操作指引区按 4 步陈列
 
 不在范围内：
-- 后端转码（视频以浏览器原生 WebM 输出）
-- mp4 输出（需要 ffmpeg.wasm，体积/复杂度不划算）
+- 后端转码（mp4 由浏览器内 ffmpeg.wasm 完成，按需 CDN 加载）
 - 账号体系、云端存储
 - 视频剪辑、字幕、滤镜等编辑功能
 - 移动端适配（屏幕录制 API 在桌面浏览器才完整可用）
@@ -84,13 +84,13 @@ idle ──[click 开始]──▶ requesting ──[user grants]──▶ recor
 
 | 组件 | 职责 |
 |------|------|
-| `App.vue` | 整体布局：顶部"在线录屏"标题栏、中央录制卡片、操作指引、底部工具介绍。提供 `useScreenRecorder` 状态注入 |
-| `RecorderPanel.vue` | 录制卡片容器；根据状态机切换"开始按钮+音频选项"与"录制中按钮组+计时器"与"预览+下载/重录" |
-| `RecorderButton.vue` | 主按钮，根据 props.state 切换文案/颜色/图标；emit `click` |
+| `App.vue` | 整体布局：顶部"在线录屏"标题栏、中央录制卡片、操作指引、底部工具介绍 |
+| `RecorderPanel.vue` | 录制卡片容器；按状态机切换三种视图：①idle/requesting → 开始按钮+音频选项；②recording/paused → 实时预览 `<video srcObject>` + 蓝色胶囊控制条（暂停/计时/停止 三合一）；③stopped → VideoPreview。同时持有 useFormatConverter 处理 mp4 下载 |
+| `RecorderButton.vue` | 主按钮，根据 props.state 切换文案/颜色/图标；emit `click`（仅用于 idle/requesting 状态） |
 | `AudioOptions.vue` | 两个复选框（系统声音/麦克风），`v-model` 绑定 `{ systemAudio, microphone }`；录制中禁用 |
-| `RecordingTimer.vue` | 接受 `startTime`，每秒刷新展示 `mm:ss`；暂停时停止累加 |
+| `RecordingTimer.vue` | 接受 `seconds: number`，展示 `mm:ss` / `hh:mm:ss`；`compact` prop 隐藏红点和警告文案，便于嵌入控制条；非 compact 模式下达 30 分钟显示警告 |
 | `OperationGuide.vue` | 静态展示 4 步指引（左侧用 HTML/CSS 还原一个小型录制 UI 预览 + 两个气泡提示，右侧步骤列表，第 1 步高亮） |
-| `VideoPreview.vue` | `<video>` 预览 + "下载视频" + "重新录制" 按钮 |
+| `VideoPreview.vue` | `<video controls>` 预览 + 三按钮：`重新录制`（次按钮）/ `下载 webm`（蓝主按钮，原生 `<a download>`）/ `下载 mp4`（蓝主按钮，emit `download-mp4`，转换中显示 `转换中 X%`） |
 
 ### 3.4 Composables
 
@@ -110,6 +110,7 @@ interface UseScreenRecorder {
   resultBlob: Ref<Blob | null>
   resultUrl: Ref<string | null>  // ObjectURL，stopped 后可用
   errorMessage: Ref<string | null>
+  displayStream: Ref<MediaStream | null>  // 录制中的屏幕流，用于实时预览
   start(opts: AudioOptions): Promise<void>
   pause(): void
   resume(): void
@@ -125,6 +126,26 @@ interface UseScreenRecorder {
 - 监听视频轨 `ended`（用户在浏览器停止共享）
 - 维护计时器（`requestAnimationFrame` 或 `setInterval`，暂停时停表）
 - 在 `stop` / `reset` / 卸载时清理：撤销 ObjectURL、关闭 AudioContext、停掉所有轨
+
+#### `useFormatConverter.ts`
+
+```ts
+interface UseFormatConverter {
+  converting: Ref<boolean>
+  progress: Ref<number>          // 0..1
+  loaded: Ref<boolean>
+  loading: Ref<boolean>          // 首次加载 ffmpeg core 时为 true
+  errorMessage: Ref<string | null>
+  convert(input: Blob, target: 'mp4'): Promise<Blob>
+}
+```
+
+- 通过 `import('@ffmpeg/ffmpeg')` 动态导入，首次 `convert()` 时按需加载
+- ffmpeg core (`@ffmpeg/core@0.12.10`) 通过 `toBlobURL` 从 unpkg CDN 加载（约 25 MB，浏览器缓存生效）
+- 单线程模式（不需要 SharedArrayBuffer / COOP+COEP 头），转换速度约 0.5x 实时
+- 转换命令：`-i input.webm -c:v libx264 -preset ultrafast -c:a aac -movflags +faststart output.mp4`
+- 监听 `progress` 事件实时更新进度条
+- 同会话内只 load 一次，多次 convert 复用 instance
 
 #### `useAudioMixer.ts`
 
@@ -172,13 +193,20 @@ interface AudioMixer {
 
 ### 4.4 下载
 
-`VideoPreview` 中：
+`VideoPreview` 提供三个动作：
 
-```html
-<a :href="resultUrl" :download="`screen-recording-${timestamp}.webm`">下载视频</a>
-```
+- **重新录制**：emit `reset` → `recorder.reset()`
+- **下载 webm**：原生 `<a :href="resultUrl" :download="`在线录制-YYYYMMDD.webm`">`，秒下
+- **下载 mp4**：emit `download-mp4` → `RecorderPanel.handleMp4Download()`：
+  1. 调用 `converter.convert(resultBlob, 'mp4')` —— 首次会触发 ffmpeg.wasm 加载
+  2. 转换中按钮文案变为 `转换中 X%`，禁用点击
+  3. 完成后通过临时 `<a>` 触发文件下载（文件名 `在线录制-YYYYMMDD.mp4`）
 
-### 4.5 重录
+### 4.5 实时预览
+
+`recording`/`paused` 状态下，`RecorderPanel` 通过 `watchEffect` 把 `recorder.displayStream` 同步到内部 `<video ref autoplay muted playsinline>` 的 `srcObject`。`displayStream` 在 `cleanupStreams()` 中置 `null`，video 元素自然解绑。
+
+### 4.6 重录
 
 `reset()`：撤销 ObjectURL、清空 chunks/blob、`state = 'idle'`，回到初始页面。
 
@@ -239,8 +267,8 @@ interface AudioMixer {
 
 - `idle`: 大蓝按钮"开始录制" + 音频选项
 - `requesting`: 按钮变 loading（保留蓝色，文案"等待授权..."）
-- `recording`/`paused`: 红按钮"结束录制" + 旁边次按钮"暂停/继续" + 计时器 `mm:ss`，音频选项禁用
-- `stopped`: `<video controls>` 预览（最大宽 720）+ "下载视频"（蓝主按钮）+ "重新录制"（次按钮）
+- `recording`/`paused`: 实时预览 `<video>`（最大宽 720 / 高 480）+ 蓝色胶囊控制条（暂停/继续 圆按钮 · 时间 · 白色方形停止按钮），音频选项不显示
+- `stopped`: `<video controls>` 预览（最大宽 720）+ "重新录制"（次按钮）+ "下载 webm"（蓝主按钮）+ "下载 mp4"（蓝主按钮，转换中显示 `转换中 X%`）
 
 ## 七、测试
 
@@ -255,29 +283,38 @@ interface AudioMixer {
   - 用户取消授权 → 回 idle
   - 视频轨 `ended` 事件 → 转 stopped
   - `reset()` 撤销 ObjectURL
+- `useFormatConverter`
+  - mock `@ffmpeg/ffmpeg` 与 `@ffmpeg/util`
+  - convert 输出 `video/mp4` Blob
+  - 多次 convert 仅 load 一次
+  - progress 事件刷新 progress.value
+  - exec 失败设置 errorMessage 并抛出
 
 ### 7.2 组件（Vue Test Utils）
 
 - `RecorderButton`：state 切换文案/className 正确
 - `AudioOptions`：v-model 双向绑定，recording 时禁用
 - `OperationGuide`：4 步全部渲染，第 1 步含 active class
+- `VideoPreview`：渲染三按钮、webm 下载链接 download 属性正确、reset/download-mp4 emit、转换中按钮显示进度且禁用
 
 ### 7.3 手动验证
 
 屏幕录制需要真实浏览器授权，自动化无法完成。手动用例：
 
-1. Chrome 最新版：标签页 + 系统声音 → 录制 10s → 下载，本地播放器能播
-2. Chrome：窗口 + 麦克风 → 暂停后继续 → 时长正确累加
+1. Chrome 最新版：标签页 + 系统声音 → 录制 10s → 实时预览正常 → 下载 webm，本地播放器能播
+2. Chrome：窗口 + 麦克风 → 暂停后继续 → 时长正确累加 → 录制完点"下载 mp4" → 首次显示加载进度 → 完成后下载 mp4 文件，本地播放器能播
 3. Chrome：整个屏幕 + 两路音都开 → 视频中能听到两路混音
 4. 录制中点浏览器原生"停止共享" → 自动转 stopped
 5. 拒绝授权 → UI 不卡死，回 idle
-6. Firefox / Edge 烟雾测试
+6. 同一会话内多次"下载 mp4"，第二次起秒转换（ffmpeg 已缓存）
+7. Firefox / Edge 烟雾测试
+8. 文件名格式：`在线录制-20260430.webm` / `在线录制-20260430.mp4`
 
 ## 八、可扩展性（暂不实现，仅设计预留）
 
 - 视频文件名前缀可配置
-- 录制中悬浮迷你控制条
 - 摄像头小窗叠加（`getUserMedia({ video: true })` + 画布合成）
 - 时长达限自动停止
+- ffmpeg.wasm 多线程模式（需配 COOP/COEP 响应头，转码速度提升约 2-3 倍）
 
 均不在本次实现范围。

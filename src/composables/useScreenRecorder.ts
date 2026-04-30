@@ -8,6 +8,7 @@ export interface UseScreenRecorder {
   resultBlob: Ref<Blob | null>
   resultUrl: Ref<string | null>
   errorMessage: Ref<string | null>
+  displayStream: Ref<MediaStream | null>
   start(opts: AudioOptions): Promise<void>
   pause(): void
   resume(): void
@@ -34,9 +35,9 @@ export function useScreenRecorder(): UseScreenRecorder {
   const resultBlob = ref<Blob | null>(null)
   const resultUrl = ref<string | null>(null)
   const errorMessage = ref<string | null>(null)
+  const displayStream = ref<MediaStream | null>(null)
 
   let recorder: MediaRecorder | null = null
-  let displayStream: MediaStream | null = null
   let micStream: MediaStream | null = null
   let mixerCleanup: (() => Promise<void>) | null = null
   let chunks: Blob[] = []
@@ -48,9 +49,9 @@ export function useScreenRecorder(): UseScreenRecorder {
   const mixer = useAudioMixer()
 
   function cleanupStreams() {
-    displayStream?.getTracks().forEach((t) => t.stop())
+    displayStream.value?.getTracks().forEach((t) => t.stop())
     micStream?.getTracks().forEach((t) => t.stop())
-    displayStream = null
+    displayStream.value = null
     micStream = null
   }
 
@@ -76,7 +77,7 @@ export function useScreenRecorder(): UseScreenRecorder {
     state.value = 'requesting'
 
     try {
-      displayStream = await navigator.mediaDevices.getDisplayMedia({
+      displayStream.value = await navigator.mediaDevices.getDisplayMedia({
         video: true,
         audio: opts.systemAudio,
       })
@@ -99,10 +100,10 @@ export function useScreenRecorder(): UseScreenRecorder {
       }
     }
 
-    const { audioTrack, cleanup } = mixer.mix([displayStream, micStream])
+    const { audioTrack, cleanup } = mixer.mix([displayStream.value, micStream])
     mixerCleanup = cleanup
 
-    const tracks: MediaStreamTrack[] = [...displayStream.getVideoTracks()]
+    const tracks: MediaStreamTrack[] = [...displayStream.value.getVideoTracks()]
     if (audioTrack) {
       tracks.push(audioTrack)
     }
@@ -130,7 +131,7 @@ export function useScreenRecorder(): UseScreenRecorder {
       stop()
     }
 
-    const videoTrack = displayStream.getVideoTracks()[0]
+    const videoTrack = displayStream.value.getVideoTracks()[0]
     videoTrackEndedHandler = () => stop()
     videoTrack.addEventListener('ended', videoTrackEndedHandler)
 
@@ -167,8 +168,8 @@ export function useScreenRecorder(): UseScreenRecorder {
     if (recorder && recorder.state !== 'inactive') {
       recorder.stop()
     }
-    if (videoTrackEndedHandler && displayStream) {
-      const t = displayStream.getVideoTracks()[0]
+    if (videoTrackEndedHandler && displayStream.value) {
+      const t = displayStream.value.getVideoTracks()[0]
       t?.removeEventListener('ended', videoTrackEndedHandler)
       videoTrackEndedHandler = null
     }
@@ -222,6 +223,7 @@ export function useScreenRecorder(): UseScreenRecorder {
     resultBlob,
     resultUrl,
     errorMessage,
+    displayStream,
     start,
     pause,
     resume,
