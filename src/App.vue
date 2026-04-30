@@ -63,9 +63,11 @@
     align-items: center;
     gap: 12px;
     padding: 16px 24px;
-    background-color: var(--color-card);
+    background-color: rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
     border-radius: var(--radius-card);
-    box-shadow: var(--shadow-card);
+    box-shadow: 0 4px 16px rgba(59, 126, 255, 0.06);
   }
   .app__header-icon {
     display: inline-flex;
@@ -82,9 +84,11 @@
     margin: 0;
   }
   .app__card {
-    background-color: var(--color-card);
+    background-color: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
     border-radius: var(--radius-card);
-    box-shadow: var(--shadow-card);
+    box-shadow: 0 8px 28px rgba(59, 126, 255, 0.08);
     padding: 16px 32px 40px;
   }
   .app__divider {
@@ -99,9 +103,11 @@
     font-size: 14px;
   }
   .app__intro {
-    background-color: var(--color-card);
+    background-color: rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
     border-radius: var(--radius-card);
-    box-shadow: var(--shadow-card);
+    box-shadow: 0 4px 16px rgba(59, 126, 255, 0.06);
     padding: 16px 24px;
   }
   .app__intro h3 {

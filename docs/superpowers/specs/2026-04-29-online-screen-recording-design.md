@@ -89,7 +89,7 @@ idle ──[click 开始]──▶ requesting ──[user grants]──▶ recor
 | `RecorderButton.vue` | 主按钮，根据 props.state 切换文案/颜色/图标；emit `click`（仅用于 idle/requesting 状态） |
 | `AudioOptions.vue` | 两个复选框（系统声音/麦克风），`v-model` 绑定 `{ systemAudio, microphone }`；录制中禁用 |
 | `RecordingTimer.vue` | 接受 `seconds: number`，展示 `mm:ss` / `hh:mm:ss`；`compact` prop 隐藏红点和警告文案，便于嵌入控制条；非 compact 模式下达 30 分钟显示警告 |
-| `OperationGuide.vue` | 静态展示 4 步指引（左侧用 HTML/CSS 还原一个小型录制 UI 预览 + 两个气泡提示，右侧步骤列表，第 1 步高亮） |
+| `OperationGuide.vue` | 4 步指引横向排布（grid 4 列）；每张卡片含蓝色圆形序号徽章 + 标题（设置 / 分享 / 录制 / 下载） + 描述；hover 上移阴影；窄屏下回退到 2 列 / 1 列 |
 | `VideoPreview.vue` | `<video controls>` 预览 + 三按钮：`重新录制`（次按钮）/ `下载 webm`（蓝主按钮，原生 `<a download>`）/ `下载 mp4`（蓝主按钮，emit `download-mp4`，转换中显示 `转换中 X%`） |
 
 ### 3.4 Composables
@@ -255,13 +255,13 @@ interface AudioMixer {
 
 ### 6.2 布局
 
-- 整页背景 `--color-bg`
-- 主体居中，宽度 `min(1200px, 100% - 48px)`
-- 顶部"在线录屏"卡片：左侧图标 + 标题（粗体 18px）
-- 录制卡片内：上下两块用 1px `--color-border` 分隔
-  - 上块：开始按钮居中，下方两组复选框横向排列
-  - 下块：操作指引（标题居中，下方左右两栏：左插图 240×240，右步骤列表 480 宽）
-- 步骤列表项：12px 内距，圆角 `--radius-step`；选中项蓝底白字，未选项 `--color-step-bg`
+- 整页背景：`--color-bg` 兜底色 + `src/assets/bg.png` 装饰图（`background-size: cover; background-attachment: fixed`，淡蓝波浪点缀全屏）
+- 主体居中，宽度 `min(1080px, 100% - 48px)`
+- 顶部"在线录屏"卡片：左侧图标 + 标题（粗体 18px），磨砂玻璃半透明（`rgba(255,255,255,0.72) + backdrop-filter: blur(12px)`）让 bg 透出
+- 录制卡片：磨砂玻璃半透明 `0.85`，蓝调阴影 `0 8px 28px rgba(59,126,255,0.08)`
+  - 上块：根据状态切换 — 开始按钮 + 音频选项 / 实时预览 + 蓝色胶囊控制条 / 录制结果 + 三按钮
+  - 下块：操作指引 4 列横向卡片（标题居中，下方四张步骤卡）
+- 步骤卡片：圆形蓝色徽章（36×36，序号白字）+ 标题 + 描述；默认 `--color-step-bg`，hover 上移 + 蓝色阴影 + 边框高亮
 
 ### 6.3 状态切换的卡片内容
 
