@@ -5,7 +5,6 @@ export interface UseFormatConverter {
   progress: Ref<number>
   loaded: Ref<boolean>
   loading: Ref<boolean>
-  loadingProgress: Ref<number>
   errorMessage: Ref<string | null>
   convert(input: Blob, target: 'mp4'): Promise<Blob>
 }
@@ -16,46 +15,16 @@ const CDN_BASES = [
   `https://fastly.jsdelivr.net/npm/@ffmpeg/core@${FFMPEG_CORE_VERSION}/dist/umd`,
   `https://unpkg.com/@ffmpeg/core@${FFMPEG_CORE_VERSION}/dist/umd`,
 ]
-const PER_FILE_TIMEOUT_MS = 60_000
+const FETCH_TIMEOUT_MS = 60_000
+const LOAD_TIMEOUT_MS = 60_000
 
-async function fetchToBlobURLWithProgress(
-  url: string,
-  mime: string,
-  onProgress?: (p: number) => void,
-): Promise<string> {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), PER_FILE_TIMEOUT_MS)
-  try {
-    const res = await fetch(url, { signal: controller.signal })
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status} ${res.statusText} (${url})`)
-    }
-    const total = Number(res.headers.get('content-length')) || 0
-    const reader = res.body?.getReader()
-    if (!reader) {
-      const ab = await res.arrayBuffer()
-      return URL.createObjectURL(new Blob([ab], { type: mime }))
-    }
-    const chunks: BlobPart[] = []
-    let received = 0
-    for (;;) {
-      const { done, value } = await reader.read()
-      if (done) {
-        break
-      }
-      chunks.push(value as BlobPart)
-      received += value.length
-      if (total > 0 && onProgress) {
-        onProgress(received / total)
-      }
-    }
-    if (onProgress) {
-      onProgress(1)
-    }
-    return URL.createObjectURL(new Blob(chunks, { type: mime }))
-  } finally {
-    clearTimeout(timer)
-  }
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error(`${label} 超时（>${Math.round(ms / 1000)}s）`)), ms)
+    }),
+  ])
 }
 
 export function useFormatConverter(): UseFormatConverter {
@@ -63,31 +32,46 @@ export function useFormatConverter(): UseFormatConverter {
   const progress = ref(0)
   const loaded = ref(false)
   const loading = ref(false)
-  const loadingProgress = ref(0)
   const errorMessage = ref<string | null>(null)
 
   let ffmpegInstance: unknown | null = null
   let loadPromise: Promise<void> | null = null
 
-  async function loadCoreFromCDN(): Promise<{ coreURL: string; wasmURL: string }> {
-    let lastErr: unknown = null
-    for (const base of CDN_BASES) {
-      try {
-        loadingProgress.value = 0
-        const [coreURL, wasmURL] = await Promise.all([
-          fetchToBlobURLWithProgress(`${base}/ffmpeg-core.js`, 'text/javascript'),
-          fetchToBlobURLWithProgress(`${base}/ffmpeg-core.wasm`, 'application/wasm', (p) => {
-            loadingProgress.value = p
-          }),
-        ])
-        return { coreURL, wasmURL }
-      } catch (err) {
-        lastErr = err
-        // eslint-disable-next-line no-console
-        console.warn(`[useFormatConverter] CDN ${base} 加载失败，尝试下一个`, err)
+  async function tryLoadFromBase(base: string): Promise<unknown> {
+    const [{ FFmpeg }, { toBlobURL }] = await Promise.all([
+      import('@ffmpeg/ffmpeg'),
+      import('@ffmpeg/util'),
+    ])
+    // eslint-disable-next-line no-console
+    console.log(`[converter] 拉取 ffmpeg core: ${base}`)
+    const [coreURL, wasmURL] = await Promise.all([
+      withTimeout(
+        toBlobURL(`${base}/ffmpeg-core.js`, 'text/javascript'),
+        FETCH_TIMEOUT_MS,
+        '下载 ffmpeg-core.js',
+      ),
+      withTimeout(
+        toBlobURL(`${base}/ffmpeg-core.wasm`, 'application/wasm'),
+        FETCH_TIMEOUT_MS,
+        '下载 ffmpeg-core.wasm',
+      ),
+    ])
+    // eslint-disable-next-line no-console
+    console.log('[converter] core 文件就绪，初始化 ffmpeg 实例')
+    const instance = new FFmpeg()
+    instance.on('progress', ({ progress: p }: { progress: number }) => {
+      if (Number.isFinite(p)) {
+        progress.value = Math.max(0, Math.min(1, p))
       }
-    }
-    throw lastErr instanceof Error ? lastErr : new Error('所有 CDN 加载均失败')
+    })
+    instance.on('log', ({ message }: { type: string; message: string }) => {
+      // eslint-disable-next-line no-console
+      console.debug(`[ffmpeg] ${message}`)
+    })
+    await withTimeout(instance.load({ coreURL, wasmURL }), LOAD_TIMEOUT_MS, 'ffmpeg.load')
+    // eslint-disable-next-line no-console
+    console.log('[converter] ffmpeg 就绪')
+    return instance
   }
 
   async function ensureLoaded() {
@@ -100,31 +84,24 @@ export function useFormatConverter(): UseFormatConverter {
     }
 
     loading.value = true
-    loadingProgress.value = 0
     loadPromise = (async () => {
-      try {
-        const { FFmpeg } = await import('@ffmpeg/ffmpeg')
-        const instance = new FFmpeg()
-        instance.on('progress', ({ progress: p }: { progress: number }) => {
-          if (Number.isFinite(p)) {
-            progress.value = Math.max(0, Math.min(1, p))
-          }
-        })
-        const { coreURL, wasmURL } = await loadCoreFromCDN()
-        await instance.load({ coreURL, wasmURL })
-        ffmpegInstance = instance
-        loaded.value = true
-      } catch (err) {
-        const e = err as Error
-        const reason =
-          e.name === 'AbortError'
-            ? '下载超时（>60s），请检查网络或代理'
-            : (e.message ?? '未知错误')
-        errorMessage.value = `加载 ffmpeg 失败：${reason}`
-        // eslint-disable-next-line no-console
-        console.error('[useFormatConverter] 加载失败:', err)
-        throw err
+      let lastErr: unknown = null
+      for (const base of CDN_BASES) {
+        try {
+          ffmpegInstance = await tryLoadFromBase(base)
+          loaded.value = true
+          return
+        } catch (err) {
+          lastErr = err
+          // eslint-disable-next-line no-console
+          console.warn(`[converter] CDN ${base} 失败，尝试下一个`, err)
+        }
       }
+      const e = lastErr instanceof Error ? lastErr : new Error('未知错误')
+      errorMessage.value = `加载视频转码器失败：${e.message}`
+      // eslint-disable-next-line no-console
+      console.error('[converter] 全部 CDN 失败', lastErr)
+      throw e
     })().finally(() => {
       loading.value = false
       loadPromise = null
@@ -153,8 +130,12 @@ export function useFormatConverter(): UseFormatConverter {
 
       const inputName = 'input.webm'
       const outputName = `output.${target}`
+      // eslint-disable-next-line no-console
+      console.log('[converter] 写入源文件')
       const data = await fetchFile(input)
       await ffmpeg.writeFile(inputName, data)
+      // eslint-disable-next-line no-console
+      console.log('[converter] 开始转码')
       await ffmpeg.exec([
         '-i',
         inputName,
@@ -168,6 +149,8 @@ export function useFormatConverter(): UseFormatConverter {
         '+faststart',
         outputName,
       ])
+      // eslint-disable-next-line no-console
+      console.log('[converter] 读取产物')
       const out = await ffmpeg.readFile(outputName)
       const bytes = typeof out === 'string' ? new TextEncoder().encode(out) : out
       const arrayBuffer = bytes.buffer.slice(
@@ -201,7 +184,6 @@ export function useFormatConverter(): UseFormatConverter {
     progress,
     loaded,
     loading,
-    loadingProgress,
     errorMessage,
     convert,
   }

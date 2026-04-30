@@ -5,17 +5,9 @@
     defineProps<{
       videoUrl: string
       fileNameBase: string
-      mp4Converting?: boolean
-      mp4Progress?: number
-      mp4LoadingFfmpeg?: boolean
-      mp4LoadingProgress?: number
+      mp4Busy?: boolean
     }>(),
-    {
-      mp4Converting: false,
-      mp4Progress: 0,
-      mp4LoadingFfmpeg: false,
-      mp4LoadingProgress: 0,
-    },
+    { mp4Busy: false },
   )
 
   defineEmits<{
@@ -24,20 +16,6 @@
   }>()
 
   const webmFileName = computed(() => `${props.fileNameBase}.webm`)
-
-  const mp4ButtonLabel = computed(() => {
-    if (props.mp4LoadingFfmpeg) {
-      const pct = Math.round((props.mp4LoadingProgress ?? 0) * 100)
-      return pct > 0 ? `下载内核 ${pct}%` : '连接 CDN...'
-    }
-    if (props.mp4Converting) {
-      const pct = Math.round(props.mp4Progress * 100)
-      return `转换中 ${pct}%`
-    }
-    return '下载 mp4'
-  })
-
-  const mp4Disabled = computed(() => props.mp4Converting || props.mp4LoadingFfmpeg)
 </script>
 
 <template>
@@ -47,21 +25,21 @@
       <button class="video-preview__btn is-secondary" type="button" @click="$emit('reset')">
         重新录制
       </button>
-      <a
-        :href="videoUrl"
-        :download="webmFileName"
-        class="video-preview__btn is-primary"
-      >
+      <a :href="videoUrl" :download="webmFileName" class="video-preview__btn is-primary">
         下载 webm
       </a>
       <button
         class="video-preview__btn is-primary"
         type="button"
-        :disabled="mp4Disabled"
+        :disabled="mp4Busy"
         @click="$emit('download-mp4')"
       >
-        {{ mp4ButtonLabel }}
+        下载 mp4
       </button>
+    </div>
+    <div v-if="mp4Busy" class="video-preview__status">
+      <span class="video-preview__spinner" aria-hidden="true" />
+      <span>视频格式转换中...</span>
     </div>
   </div>
 </template>
@@ -71,7 +49,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 24px;
+    gap: 16px;
   }
   .video-preview__video {
     width: 100%;
@@ -84,6 +62,7 @@
     gap: 16px;
     flex-wrap: wrap;
     justify-content: center;
+    margin-top: 8px;
   }
   .video-preview__btn {
     display: inline-flex;
@@ -95,7 +74,9 @@
     font-weight: 500;
     border-radius: var(--radius-button);
     text-decoration: none;
-    transition: background-color var(--duration-fast), color var(--duration-fast);
+    transition:
+      background-color var(--duration-fast),
+      color var(--duration-fast);
     cursor: pointer;
   }
   .video-preview__btn.is-primary {
@@ -110,7 +91,7 @@
   }
   .video-preview__btn.is-primary:disabled {
     background-color: var(--color-primary);
-    opacity: 0.7;
+    opacity: 0.55;
     cursor: progress;
   }
   .video-preview__btn.is-secondary {
@@ -120,5 +101,26 @@
   }
   .video-preview__btn.is-secondary:hover {
     background-color: var(--color-step-bg);
+  }
+  .video-preview__status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+    color: var(--color-text-secondary);
+    font-size: 13px;
+  }
+  .video-preview__spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--color-border);
+    border-top-color: var(--color-primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
   }
 </style>

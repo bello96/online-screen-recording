@@ -132,10 +132,7 @@
       v-else
       :video-url="recorder.resultUrl.value!"
       :file-name-base="fileNameBase"
-      :mp4-converting="converter.converting.value"
-      :mp4-progress="converter.progress.value"
-      :mp4-loading-ffmpeg="converter.loading.value"
-      :mp4-loading-progress="converter.loadingProgress.value"
+      :mp4-busy="converter.loading.value || converter.converting.value"
       @reset="recorder.reset"
       @download-mp4="handleMp4Download"
     />

@@ -5,7 +5,7 @@ import VideoPreview from '@/components/VideoPreview.vue'
 describe('VideoPreview', () => {
   it('渲染 video 和三个按钮', () => {
     const w = mount(VideoPreview, {
-      props: { videoUrl: 'blob:abc', fileNameBase: '在线录制-20260430' },
+      props: { videoUrl: 'blob:abc', fileNameBase: '在线录屏-20260430' },
     })
     expect(w.find('video').exists()).toBe(true)
     expect(w.find('video').attributes('src')).toBe('blob:abc')
@@ -16,10 +16,10 @@ describe('VideoPreview', () => {
 
   it('webm 下载链接使用 fileNameBase + .webm', () => {
     const w = mount(VideoPreview, {
-      props: { videoUrl: 'blob:abc', fileNameBase: '在线录制-20260430' },
+      props: { videoUrl: 'blob:abc', fileNameBase: '在线录屏-20260430' },
     })
     const a = w.find('a')
-    expect(a.attributes('download')).toBe('在线录制-20260430.webm')
+    expect(a.attributes('download')).toBe('在线录屏-20260430.webm')
     expect(a.attributes('href')).toBe('blob:abc')
   })
 
@@ -40,45 +40,24 @@ describe('VideoPreview', () => {
     expect(w.emitted('download-mp4')).toHaveLength(1)
   })
 
-  it('mp4Converting 时按钮显示进度并禁用', () => {
+  it('mp4Busy 时按钮禁用且显示「视频格式转换中...」', () => {
     const w = mount(VideoPreview, {
       props: {
         videoUrl: 'blob:abc',
         fileNameBase: 'x',
-        mp4Converting: true,
-        mp4Progress: 0.42,
+        mp4Busy: true,
       },
     })
     const mp4Btn = w.findAll('button.is-primary')[0]
-    expect(mp4Btn.text()).toContain('转换中')
-    expect(mp4Btn.text()).toContain('42%')
     expect(mp4Btn.attributes('disabled')).toBeDefined()
+    expect(mp4Btn.text()).toBe('下载 mp4')
+    expect(w.text()).toContain('视频格式转换中')
   })
 
-  it('mp4LoadingFfmpeg 但还没下载进度时显示连接 CDN', () => {
+  it('mp4Busy=false 时不显示状态行', () => {
     const w = mount(VideoPreview, {
-      props: {
-        videoUrl: 'blob:abc',
-        fileNameBase: 'x',
-        mp4LoadingFfmpeg: true,
-      },
+      props: { videoUrl: 'blob:abc', fileNameBase: 'x', mp4Busy: false },
     })
-    const mp4Btn = w.findAll('button.is-primary')[0]
-    expect(mp4Btn.text()).toContain('连接 CDN')
-    expect(mp4Btn.attributes('disabled')).toBeDefined()
-  })
-
-  it('mp4LoadingFfmpeg 且有下载进度时显示百分比', () => {
-    const w = mount(VideoPreview, {
-      props: {
-        videoUrl: 'blob:abc',
-        fileNameBase: 'x',
-        mp4LoadingFfmpeg: true,
-        mp4LoadingProgress: 0.37,
-      },
-    })
-    const mp4Btn = w.findAll('button.is-primary')[0]
-    expect(mp4Btn.text()).toContain('下载内核')
-    expect(mp4Btn.text()).toContain('37%')
+    expect(w.text()).not.toContain('视频格式转换中')
   })
 })
