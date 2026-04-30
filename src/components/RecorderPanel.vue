@@ -23,7 +23,7 @@
     const y = now.getFullYear()
     const m = String(now.getMonth() + 1).padStart(2, '0')
     const d = String(now.getDate()).padStart(2, '0')
-    return `在线录制-${y}${m}${d}`
+    return `在线录屏-${y}${m}${d}`
   })
 
   watchEffect(() => {
@@ -77,22 +77,14 @@
     }
   }
 
-  const errorText = computed(
-    () => recorder.errorMessage.value || converter.errorMessage.value,
-  )
+  const errorText = computed(() => recorder.errorMessage.value || converter.errorMessage.value)
 </script>
 
 <template>
   <div class="recorder-panel">
     <template v-if="isControlling">
       <div class="recorder-panel__live">
-        <video
-          ref="liveVideoRef"
-          autoplay
-          muted
-          playsinline
-          class="recorder-panel__live-video"
-        />
+        <video ref="liveVideoRef" autoplay muted playsinline class="recorder-panel__live-video" />
       </div>
       <div class="recorder-panel__control-bar">
         <button
@@ -115,11 +107,7 @@
             <path d="M8 5v14l11-7L8 5z" />
           </svg>
         </button>
-        <RecordingTimer
-          :seconds="recorder.duration.value"
-          compact
-          class="recorder-panel__timer"
-        />
+        <RecordingTimer :seconds="recorder.duration.value" compact class="recorder-panel__timer" />
         <button
           class="recorder-panel__stop-btn"
           type="button"
@@ -147,6 +135,7 @@
       :mp4-converting="converter.converting.value"
       :mp4-progress="converter.progress.value"
       :mp4-loading-ffmpeg="converter.loading.value"
+      :mp4-loading-progress="converter.loadingProgress.value"
       @reset="recorder.reset"
       @download-mp4="handleMp4Download"
     />

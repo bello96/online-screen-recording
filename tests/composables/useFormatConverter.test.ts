@@ -29,29 +29,60 @@ vi.mock('@ffmpeg/util', () => ({
   fetchFile: vi.fn(async () => new Uint8Array([1, 2, 3])),
 }))
 
+function makeFakeResponse(bytes: Uint8Array) {
+  let sent = false
+  return {
+    ok: true,
+    status: 200,
+    statusText: 'OK',
+    headers: {
+      get: (name: string) =>
+        name.toLowerCase() === 'content-length' ? String(bytes.length) : null,
+    },
+    body: {
+      getReader: () => ({
+        async read() {
+          if (sent) {
+            return { done: true, value: undefined }
+          }
+          sent = true
+          return { done: false, value: bytes }
+        },
+      }),
+    },
+    async arrayBuffer() {
+      return bytes.buffer
+    },
+  }
+}
+
 const flushAll = async () => {
   for (let i = 0; i < 10; i++) {
     await Promise.resolve()
   }
 }
 
+beforeEach(() => {
+  loadMock.mockClear()
+  writeFileMock.mockClear()
+  execMock.mockClear()
+  readFileMock.mockClear()
+  deleteFileMock.mockClear()
+  progressHandler = null
+  ;(globalThis as unknown as { fetch: typeof fetch }).fetch = vi.fn(
+    async () => makeFakeResponse(new Uint8Array([1, 2, 3])) as unknown as Response,
+  )
+})
+
 import { useFormatConverter } from '@/composables/useFormatConverter'
 
 describe('useFormatConverter', () => {
-  beforeEach(() => {
-    loadMock.mockClear()
-    writeFileMock.mockClear()
-    execMock.mockClear()
-    readFileMock.mockClear()
-    deleteFileMock.mockClear()
-    progressHandler = null
-  })
-
   it('初始状态：未在转换、未加载', () => {
     const c = useFormatConverter()
     expect(c.converting.value).toBe(false)
     expect(c.progress.value).toBe(0)
     expect(c.loaded.value).toBe(false)
+    expect(c.loadingProgress.value).toBe(0)
   })
 
   it('convert 后输出 video/mp4 类型 Blob', async () => {
@@ -97,5 +128,15 @@ describe('useFormatConverter', () => {
     await expect(c.convert(new Blob(['x']), 'mp4')).rejects.toThrow('encode error')
     expect(c.errorMessage.value).toContain('MP4 转换失败')
     expect(c.converting.value).toBe(false)
+  })
+
+  it('CDN 全部失败时记录错误', async () => {
+    ;(globalThis as unknown as { fetch: typeof fetch }).fetch = vi.fn(async () => {
+      throw new Error('network down')
+    }) as unknown as typeof fetch
+    const c = useFormatConverter()
+    await expect(c.convert(new Blob(['x']), 'mp4')).rejects.toThrow()
+    expect(c.errorMessage.value).toContain('加载 ffmpeg 失败')
+    expect(c.loading.value).toBe(false)
   })
 })

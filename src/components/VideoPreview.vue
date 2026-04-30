@@ -8,11 +8,13 @@
       mp4Converting?: boolean
       mp4Progress?: number
       mp4LoadingFfmpeg?: boolean
+      mp4LoadingProgress?: number
     }>(),
     {
       mp4Converting: false,
       mp4Progress: 0,
       mp4LoadingFfmpeg: false,
+      mp4LoadingProgress: 0,
     },
   )
 
@@ -25,7 +27,8 @@
 
   const mp4ButtonLabel = computed(() => {
     if (props.mp4LoadingFfmpeg) {
-      return '加载转换器...'
+      const pct = Math.round((props.mp4LoadingProgress ?? 0) * 100)
+      return pct > 0 ? `下载内核 ${pct}%` : '连接 CDN...'
     }
     if (props.mp4Converting) {
       const pct = Math.round(props.mp4Progress * 100)

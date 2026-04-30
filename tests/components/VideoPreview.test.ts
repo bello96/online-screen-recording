@@ -55,7 +55,7 @@ describe('VideoPreview', () => {
     expect(mp4Btn.attributes('disabled')).toBeDefined()
   })
 
-  it('mp4LoadingFfmpeg 时按钮显示加载文案', () => {
+  it('mp4LoadingFfmpeg 但还没下载进度时显示连接 CDN', () => {
     const w = mount(VideoPreview, {
       props: {
         videoUrl: 'blob:abc',
@@ -64,7 +64,21 @@ describe('VideoPreview', () => {
       },
     })
     const mp4Btn = w.findAll('button.is-primary')[0]
-    expect(mp4Btn.text()).toContain('加载转换器')
+    expect(mp4Btn.text()).toContain('连接 CDN')
     expect(mp4Btn.attributes('disabled')).toBeDefined()
+  })
+
+  it('mp4LoadingFfmpeg 且有下载进度时显示百分比', () => {
+    const w = mount(VideoPreview, {
+      props: {
+        videoUrl: 'blob:abc',
+        fileNameBase: 'x',
+        mp4LoadingFfmpeg: true,
+        mp4LoadingProgress: 0.37,
+      },
+    })
+    const mp4Btn = w.findAll('button.is-primary')[0]
+    expect(mp4Btn.text()).toContain('下载内核')
+    expect(mp4Btn.text()).toContain('37%')
   })
 })
