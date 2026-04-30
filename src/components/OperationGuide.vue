@@ -74,8 +74,8 @@
       border-color var(--duration-fast);
   }
   .op-step:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 8px 20px rgba(59, 126, 255, 0.12);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(59, 126, 255, 0.08);
     border-color: var(--color-primary-light);
   }
   .op-step__badge {
