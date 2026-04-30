@@ -85,12 +85,11 @@
     width: 36px;
     height: 36px;
     margin-bottom: 14px;
-    color: #fff;
-    background-color: var(--color-primary);
+    color: var(--color-primary);
+    background-color: var(--color-primary-light);
     border-radius: 50%;
     font-size: 16px;
     font-weight: 600;
-    box-shadow: var(--shadow-button);
   }
   .op-step__title {
     font-size: 15px;
