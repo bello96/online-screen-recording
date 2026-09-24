@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import RecorderButton from '@/components/RecorderButton.vue'
+import { setLocale } from '@/i18n'
 
 describe('RecorderButton', () => {
   it('idle 状态显示"开始录制"', () => {
@@ -36,5 +37,14 @@ describe('RecorderButton', () => {
     const w = mount(RecorderButton, { props: { state: 'requesting' } })
     await w.trigger('click')
     expect(w.emitted('click')).toBeUndefined()
+  })
+})
+
+describe('RecorderButton 多语言', () => {
+  it('切换语言后文案实时更新', async () => {
+    const w = mount(RecorderButton, { props: { state: 'idle' } })
+    setLocale('es')
+    await w.vm.$nextTick()
+    expect(w.text()).toContain('Iniciar grabación')
   })
 })

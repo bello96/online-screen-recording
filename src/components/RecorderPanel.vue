@@ -1,11 +1,13 @@
 <script setup lang="ts">
-  import { ref, computed, watchEffect } from 'vue'
+  import { ref, computed, watch, watchEffect } from 'vue'
   import RecorderButton from './RecorderButton.vue'
   import AudioOptions from './AudioOptions.vue'
   import RecordingTimer from './RecordingTimer.vue'
   import VideoPreview from './VideoPreview.vue'
   import { useScreenRecorder } from '@/composables/useScreenRecorder'
   import { useFormatConverter } from '@/composables/useFormatConverter'
+  import { t } from '@/i18n'
+  import { RECORDING_WARNING_SECONDS } from '@/constants'
   import type { AudioOptions as AudioOptionsType } from '@/types'
 
   const audioOpts = ref<AudioOptionsType>({ systemAudio: true, microphone: false })
@@ -13,17 +15,29 @@
   const converter = useFormatConverter()
 
   const liveVideoRef = ref<HTMLVideoElement | null>(null)
+  // 录制完成的时间，用于生成文件名（每次录制结束时刷新，而不是页面首次渲染时）
+  const recordedAt = ref(new Date())
 
   const isControlling = computed(
     () => recorder.state.value === 'recording' || recorder.state.value === 'paused',
   )
 
+  const showLongWarning = computed(
+    () => isControlling.value && recorder.duration.value >= RECORDING_WARNING_SECONDS,
+  )
+
   const fileNameBase = computed(() => {
-    const now = new Date()
-    const y = now.getFullYear()
-    const m = String(now.getMonth() + 1).padStart(2, '0')
-    const d = String(now.getDate()).padStart(2, '0')
-    return `在线录屏-${y}${m}${d}`
+    const date = recordedAt.value
+    const y = date.getFullYear()
+    const m = String(date.getMonth() + 1).padStart(2, '0')
+    const d = String(date.getDate()).padStart(2, '0')
+    return `${t('file.prefix')}-${y}${m}${d}`
+  })
+
+  watch(recorder.state, (state) => {
+    if (state === 'stopped') {
+      recordedAt.value = new Date()
+    }
   })
 
   watchEffect(() => {
@@ -36,6 +50,7 @@
 
   function handleStartClick() {
     if (recorder.state.value === 'idle') {
+      converter.clearError()
       recorder.start(audioOpts.value)
     }
   }
@@ -54,6 +69,11 @@
     }
   }
 
+  function handleReset() {
+    converter.clearError()
+    recorder.reset()
+  }
+
   function triggerDownload(blob: Blob, fileName: string) {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -66,11 +86,16 @@
   }
 
   async function handleMp4Download() {
-    if (!recorder.resultBlob.value) {
+    const source = recorder.resultBlob.value
+    if (!source) {
       return
     }
     try {
-      const mp4Blob = await converter.convert(recorder.resultBlob.value, 'mp4')
+      const mp4Blob = await converter.convert(source, 'mp4')
+      // 转码期间用户可能已点「重新录制」，此时不再下载旧视频
+      if (recorder.resultBlob.value !== source) {
+        return
+      }
       triggerDownload(mp4Blob, `${fileNameBase.value}.mp4`)
     } catch {
       /* errorMessage 由 converter 内部设置 */
@@ -90,7 +115,8 @@
         <button
           class="recorder-panel__pause-btn"
           type="button"
-          :aria-label="recorder.state.value === 'paused' ? '继续录制' : '暂停录制'"
+          :aria-label="recorder.state.value === 'paused' ? t('recorder.resume') : t('recorder.pause')"
+          :title="recorder.state.value === 'paused' ? t('recorder.resume') : t('recorder.pause')"
           @click="handlePauseToggle"
         >
           <svg
@@ -111,7 +137,8 @@
         <button
           class="recorder-panel__stop-btn"
           type="button"
-          aria-label="结束录制"
+          :aria-label="t('recorder.stop')"
+          :title="t('recorder.stop')"
           @click="handleStopClick"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
@@ -119,9 +146,12 @@
           </svg>
         </button>
       </div>
+      <p v-if="showLongWarning" class="recorder-panel__warning" role="status">
+        {{ t('recorder.longWarning') }}
+      </p>
     </template>
 
-    <template v-else-if="recorder.state.value !== 'stopped'">
+    <template v-else-if="recorder.state.value !== 'stopped' || !recorder.resultUrl.value">
       <div class="recorder-panel__main">
         <RecorderButton :state="recorder.state.value" @click="handleStartClick" />
       </div>
@@ -130,10 +160,12 @@
 
     <VideoPreview
       v-else
-      :video-url="recorder.resultUrl.value!"
+      :video-url="recorder.resultUrl.value"
       :file-name-base="fileNameBase"
       :mp4-busy="converter.loading.value || converter.converting.value"
-      @reset="recorder.reset"
+      :mp4-loading="converter.loading.value"
+      :mp4-progress="converter.progress.value"
+      @reset="handleReset"
       @download-mp4="handleMp4Download"
     />
 
@@ -142,7 +174,6 @@
     </div>
   </div>
 </template>
-
 <style scoped>
   .recorder-panel {
     display: flex;
@@ -166,7 +197,7 @@
     max-width: 720px;
     max-height: 480px;
     border-radius: var(--radius-card);
-    background-color: #000;
+    background-color: var(--color-video-bg);
     object-fit: contain;
   }
   .recorder-panel__control-bar {
@@ -185,18 +216,18 @@
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    color: #fff;
+    color: var(--color-on-primary);
     background: transparent;
     transition: background-color var(--duration-fast);
   }
   .recorder-panel__pause-btn:hover {
-    background-color: rgba(255, 255, 255, 0.15);
+    background-color: var(--color-overlay-hover);
   }
   .recorder-panel__timer {
     padding: 0 12px;
     font-size: 18px;
     font-weight: 500;
-    color: #fff;
+    color: var(--color-on-primary);
   }
   .recorder-panel__stop-btn {
     display: inline-flex;
@@ -206,17 +237,23 @@
     height: 36px;
     border-radius: 8px;
     color: var(--color-primary);
-    background-color: #fff;
+    background-color: var(--color-on-primary);
     transition: background-color var(--duration-fast);
   }
   .recorder-panel__stop-btn:hover {
-    background-color: #eef3ff;
+    background-color: var(--color-primary-lighter);
+  }
+  .recorder-panel__warning {
+    margin: -8px 0 0;
+    color: var(--color-danger);
+    font-size: 13px;
+    text-align: center;
   }
   .recorder-panel__error {
     color: var(--color-danger);
     font-size: 13px;
-    background-color: #fff2f0;
-    border: 1px solid #ffccc7;
+    background-color: var(--color-danger-bg);
+    border: 1px solid var(--color-danger-border);
     padding: 8px 16px;
     border-radius: var(--radius-button);
     max-width: 480px;

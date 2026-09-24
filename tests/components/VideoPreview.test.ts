@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import VideoPreview from '@/components/VideoPreview.vue'
+import { setLocale } from '@/i18n'
 
 describe('VideoPreview', () => {
   it('渲染 video 和三个按钮', () => {
@@ -59,5 +60,29 @@ describe('VideoPreview', () => {
       props: { videoUrl: 'blob:abc', fileNameBase: 'x', mp4Busy: false },
     })
     expect(w.text()).not.toContain('视频格式转换中')
+  })
+})
+
+describe('VideoPreview 转码状态与多语言', () => {
+  it('加载转码器阶段显示加载文案', () => {
+    const w = mount(VideoPreview, {
+      props: { videoUrl: 'blob:abc', fileNameBase: 'x', mp4Busy: true, mp4Loading: true },
+    })
+    expect(w.text()).toContain('正在加载转码器')
+  })
+
+  it('转码阶段显示百分比进度', () => {
+    const w = mount(VideoPreview, {
+      props: { videoUrl: 'blob:abc', fileNameBase: 'x', mp4Busy: true, mp4Progress: 0.456 },
+    })
+    expect(w.text()).toContain('视频格式转换中... 46%')
+  })
+
+  it('切换为英文后按钮文案随之变化', async () => {
+    setLocale('en')
+    const w = mount(VideoPreview, { props: { videoUrl: 'blob:abc', fileNameBase: 'x' } })
+    expect(w.text()).toContain('Record again')
+    expect(w.text()).toContain('Download webm')
+    expect(w.text()).toContain('Download mp4')
   })
 })

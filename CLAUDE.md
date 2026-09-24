@@ -11,7 +11,8 @@
 - 录制核心逻辑封装在 `src/composables/useScreenRecorder.ts`：状态机 `idle | requesting | recording | paused | stopped`，对外暴露响应式 `state / duration / resultBlob / resultUrl / errorMessage` 与 `start / pause / resume / stop / reset` 方法
 - 系统音 + 麦克风混流封装在 `src/composables/useAudioMixer.ts`，使用 `AudioContext.createMediaStreamDestination` 合并多路音频到单轨
 - UI 组件按职责拆分（见 `src/components/`），每个组件单一职责、有对应单元测试
-- 视频以 `video/webm;codecs=vp9,opus` 输出（fallback 到 vp8 / 默认 webm），不做 mp4 转码
+- 视频以 `video/webm;codecs=vp9,opus` 输出（fallback 到 vp8 / webm / 浏览器默认格式），mp4 由 ffmpeg.wasm 在前端按需转码
+- 多语言（中 / 英 / 日 / 西）自实现于 `src/i18n/`，所有界面文案必须走 `t()`，新增 key 先加到 `zh-CN.ts`；详见 spec §9
 
 ## 设计与计划文档
 

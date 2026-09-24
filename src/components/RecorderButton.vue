@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { t } from '@/i18n'
 import type { RecorderState } from '@/types'
 
 const props = defineProps<{ state: RecorderState }>()
@@ -8,12 +9,12 @@ defineEmits<{ (e: 'click'): void }>()
 const label = computed(() => {
   switch (props.state) {
     case 'requesting':
-      return '等待授权...'
+      return t('recorder.requesting')
     case 'recording':
     case 'paused':
-      return '结束录制'
+      return t('recorder.stop')
     default:
-      return '开始录制'
+      return t('recorder.start')
   }
 })
 
@@ -34,6 +35,7 @@ const disabled = computed(() => props.state === 'requesting')
   <button
     class="recorder-button"
     :class="variant"
+    type="button"
     :disabled="disabled"
     @click="$emit('click')"
   >
@@ -70,7 +72,7 @@ const disabled = computed(() => props.state === 'requesting')
   padding: 12px 28px;
   font-size: 16px;
   font-weight: 500;
-  color: #fff;
+  color: var(--color-on-primary);
   border-radius: var(--radius-button);
   transition: background-color var(--duration-fast);
 }

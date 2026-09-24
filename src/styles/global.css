@@ -19,12 +19,25 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/*
+ * 背景图放在独立的 fixed 合成层上，替代 background-attachment: fixed：
+ * 后者会让每次滚动都整页重绘，叠加卡片的 backdrop-filter 时开销尤其大
+ */
 body {
+  /* 背景色由 html 承担，否则 body 背景会盖住下方 z-index: -1 的背景图层 */
+  background-color: transparent;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
   background-image: url('../assets/bg.png');
   background-repeat: no-repeat;
   background-position: center top;
   background-size: cover;
-  background-attachment: fixed;
+  pointer-events: none;
 }
 
 #app {

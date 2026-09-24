@@ -1,33 +1,27 @@
 <script setup lang="ts">
+  import { computed } from 'vue'
+  import { t } from '@/i18n'
   import type { OperationStep } from '@/types'
 
-  const steps: OperationStep[] = [
-    {
-      index: 1,
-      title: '设置',
-      description: '勾选系统声音 / 麦克风，点击「开始录制」',
-    },
-    {
-      index: 2,
-      title: '分享',
-      description: '选择要录制的标签页 / 窗口 / 屏幕，点击「分享」',
-    },
-    {
-      index: 3,
-      title: '录制',
-      description: '过程中可暂停，点击「结束录制」或「停止共享」完成',
-    },
-    {
-      index: 4,
-      title: '下载',
-      description: '一键下载 webm 或 mp4 格式视频',
-    },
-  ]
+  const STEP_KEYS = [
+    { title: 'guide.step1.title', description: 'guide.step1.desc' },
+    { title: 'guide.step2.title', description: 'guide.step2.desc' },
+    { title: 'guide.step3.title', description: 'guide.step3.desc' },
+    { title: 'guide.step4.title', description: 'guide.step4.desc' },
+  ] as const
+
+  const steps = computed<OperationStep[]>(() =>
+    STEP_KEYS.map((keys, i) => ({
+      index: i + 1,
+      title: t(keys.title),
+      description: t(keys.description),
+    })),
+  )
 </script>
 
 <template>
   <section class="operation-guide">
-    <h2 class="operation-guide__title">操作指引</h2>
+    <h2 class="operation-guide__title">{{ t('guide.title') }}</h2>
     <ol class="operation-guide__steps">
       <li v-for="step in steps" :key="step.index" class="op-step">
         <div class="op-step__badge">{{ step.index }}</div>
@@ -101,6 +95,8 @@
     font-size: 13px;
     line-height: 1.6;
     color: var(--color-text-secondary);
+    /* 西语等长单词在窄卡片中允许断行，避免溢出 */
+    overflow-wrap: anywhere;
   }
   @media (max-width: 720px) {
     .operation-guide__steps {

@@ -1,4 +1,5 @@
 import { vi, beforeEach } from 'vitest'
+import { setLocale, DEFAULT_LOCALE } from '@/i18n'
 
 class MockMediaStreamTrack {
   kind: string
@@ -90,6 +91,9 @@ class MockAudioContext {
 }
 
 beforeEach(() => {
+  localStorage.clear()
+  setLocale(DEFAULT_LOCALE)
+
   ;(globalThis as unknown as { MediaStream: typeof MockMediaStream }).MediaStream = MockMediaStream
   ;(globalThis as unknown as { MediaStreamTrack: typeof MockMediaStreamTrack }).MediaStreamTrack =
     MockMediaStreamTrack

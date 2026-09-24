@@ -1,5 +1,6 @@
 <script setup lang="ts">
   import { computed } from 'vue'
+  import { t } from '@/i18n'
   import type { AudioOptions } from '@/types'
 
   const props = defineProps<{
@@ -26,11 +27,11 @@
   <div class="audio-options">
     <label class="audio-options__item">
       <input v-model="systemAudio" type="checkbox" :disabled="disabled" />
-      <span>系统声音</span>
+      <span>{{ t('audio.system') }}</span>
     </label>
     <label class="audio-options__item">
       <input v-model="microphone" type="checkbox" :disabled="disabled" />
-      <span>麦克风</span>
+      <span>{{ t('audio.microphone') }}</span>
     </label>
   </div>
 </template>

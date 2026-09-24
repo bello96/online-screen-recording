@@ -1,5 +1,7 @@
 <script setup lang="ts">
   import { computed } from 'vue'
+  import { t } from '@/i18n'
+  import { RECORDING_WARNING_SECONDS } from '@/constants'
 
   const props = withDefaults(
     defineProps<{
@@ -8,8 +10,6 @@
     }>(),
     { compact: false },
   )
-
-  const WARNING_THRESHOLD = 30 * 60
 
   const display = computed(() => {
     const total = Math.max(0, Math.floor(props.seconds))
@@ -20,14 +20,14 @@
     return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`
   })
 
-  const warning = computed(() => !props.compact && props.seconds >= WARNING_THRESHOLD)
+  const warning = computed(() => !props.compact && props.seconds >= RECORDING_WARNING_SECONDS)
 </script>
 
 <template>
   <div class="recording-timer" :class="{ 'is-compact': compact }">
     <span v-if="!compact" class="recording-timer__dot" />
     <span class="recording-timer__time">{{ display }}</span>
-    <span v-if="warning" class="recording-timer__warning">建议尽快结束录制以避免内存占用过高</span>
+    <span v-if="warning" class="recording-timer__warning">{{ t('recorder.longWarning') }}</span>
   </div>
 </template>
 

@@ -141,9 +141,9 @@ interface UseFormatConverter {
 ```
 
 - 通过 `import('@ffmpeg/ffmpeg')` 动态导入，首次 `convert()` 时按需加载
-- ffmpeg core (`@ffmpeg/core@0.12.10`) 通过 `toBlobURL` 从 unpkg CDN 加载（约 25 MB，浏览器缓存生效）
+- ffmpeg core (`@ffmpeg/core@0.12.10`) 依次尝试 jsdelivr / fastly / unpkg，用 `fetch` + `AbortController` 下载（超时会真正中止请求），失败的实例会 `terminate()`，blob URL 用完即撤销
 - 单线程模式（不需要 SharedArrayBuffer / COOP+COEP 头），转换速度约 0.5x 实时
-- 转换命令：`-i input.webm -c:v libx264 -preset ultrafast -c:a aac -movflags +faststart output.mp4`
+- 转换命令：`-i input.webm -vf scale=trunc(iw/2)*2:trunc(ih/2)*2 -c:v libx264 -preset ultrafast -pix_fmt yuv420p -c:a aac -movflags +faststart output.mp4`（保证宽高为偶数，兼容系统播放器）；退出码非 0 视为失败；无论成败都会删除 MEMFS 中的文件
 - 监听 `progress` 事件实时更新进度条
 - 同会话内只 load 一次，多次 convert 复用 instance
 
@@ -155,7 +155,8 @@ interface AudioMixer {
 }
 ```
 
-- 创建 `AudioContext` + `MediaStreamDestination`
+- 只有一路音频时直接透传原始音轨，不创建 AudioContext
+- 多路时创建 `AudioContext`（处于 suspended 时主动 resume）+ `MediaStreamDestination`
 - 对每个有音频轨的 stream，创建 `MediaStreamSource` 并 `connect(destination)`
 - 返回单一混音轨；零音频源时返回 `null`
 - `cleanup` 关闭 context 并断开节点
@@ -219,7 +220,11 @@ interface AudioMixer {
 | `getUserMedia` 麦克风失败 | 提示一次"麦克风授权失败，将仅录制屏幕和系统声音"，继续录制 |
 | 视频轨 `ended` | 自动 `stop()` |
 | MediaRecorder `error` 事件 | `stop()`，记录错误信息到 `errorMessage` 并展示 |
-| 录制时长达到 30 分钟后 | 在计时器旁持续显示红色提示"建议尽快结束录制以避免内存占用过高" |
+| 录制时长达到 30 分钟后 | 在控制条下方持续显示红色提示"建议尽快结束录制以避免内存占用过高" |
+| `MediaRecorder` 构造 / 启动失败 | 释放已获取的流，回到 idle 并提示"无法启动录制" |
+| 等待麦克风授权期间用户已停止共享 | 不开始录制，释放资源回到 idle |
+| 录制产物为空（0 字节） | 回到 idle 并提示"录制内容为空，请重新录制" |
+| 授权弹窗期间 `reset()` / 组件卸载 | 通过会话号识别过期流程，迟到的 stream 立即关闭 |
 | 录制中刷新 / 关闭页面 | `beforeunload` 监听，录制状态下返回非空字符串触发原生确认 |
 | 组件卸载 | `onBeforeUnmount` 调用 `reset()` 释放资源 |
 
@@ -318,3 +323,13 @@ interface AudioMixer {
 - ffmpeg.wasm 多线程模式（需配 COOP/COEP 响应头，转码速度提升约 2-3 倍）
 
 均不在本次实现范围。
+
+## 九、多语言（i18n）
+
+- 支持简体中文（默认）/ English / 日本語 / Español，切换入口位于页头右上角（`LanguageSwitcher.vue`）
+- 轻量自实现，不引入 vue-i18n：`src/i18n/index.ts` 导出 `locale / setLocale / t / translateError`；文案在 `src/i18n/locales/*.ts`
+- 以 `zh-CN.ts` 为 key 的类型来源，其它语言缺 key 会在 typecheck 时报错
+- 选择的语言保存在 `localStorage`（key：`online-screen-recording:locale`）；首次访问一律中文，不跟随浏览器语言
+- 切换语言时同步 `<html lang>` 与 `document.title`
+- composable 内部只保存 `{ key, reason }`，对外的 `errorMessage` 是 computed，已显示的错误也会随语言切换
+- 下载文件名前缀随语言变化：`在线录屏-YYYYMMDD` / `screen-recording-YYYYMMDD` / `画面録画-YYYYMMDD` / `grabacion-pantalla-YYYYMMDD`

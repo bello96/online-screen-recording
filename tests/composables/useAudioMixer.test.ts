@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { useAudioMixer } from '@/composables/useAudioMixer'
-import { MockMediaStream, MockMediaStreamTrack } from '../setup'
+import { MockAudioContext, MockMediaStream, MockMediaStreamTrack } from '../setup'
 
 describe('useAudioMixer', () => {
   it('零个含音频的 stream 时返回 null 音轨', () => {
@@ -42,5 +42,39 @@ describe('useAudioMixer', () => {
     const result = mixer.mix([stream, null, undefined])
     expect(result.audioTrack).not.toBeNull()
     result.cleanup()
+  })
+})
+
+describe('useAudioMixer 单路直通', () => {
+  it('只有一路音频时直接复用原始音轨，不创建 AudioContext', () => {
+    const ctor = vi.fn()
+    const Original = globalThis.AudioContext
+    globalThis.AudioContext = class extends (Original as unknown as { new (): object }) {
+      constructor() {
+        super()
+        ctor()
+      }
+    } as unknown as typeof AudioContext
+    const track = new MockMediaStreamTrack('audio')
+    const stream = new MockMediaStream([track]) as unknown as MediaStream
+    const result = useAudioMixer().mix([stream, null])
+    expect(result.audioTrack).toBe(track)
+    expect(ctor).not.toHaveBeenCalled()
+  })
+
+  it('两路音频时创建 AudioContext 混流，cleanup 后关闭', async () => {
+    const instances: MockAudioContext[] = []
+    globalThis.AudioContext = class extends MockAudioContext {
+      constructor() {
+        super()
+        instances.push(this)
+      }
+    } as unknown as typeof AudioContext
+    const a = new MockMediaStream([new MockMediaStreamTrack('audio')]) as unknown as MediaStream
+    const b = new MockMediaStream([new MockMediaStreamTrack('audio')]) as unknown as MediaStream
+    const result = useAudioMixer().mix([a, b])
+    expect(instances).toHaveLength(1)
+    await result.cleanup()
+    expect(instances[0].state).toBe('closed')
   })
 })
